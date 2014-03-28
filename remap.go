@@ -11,14 +11,114 @@ import (
   "fmt"
   "flag"
   "bufio"
+  "strings"
   "encoding/csv"
 )
 
 // Global constants
 const DefaultBufferSize  = 4096
 const DefaultHeaderCount = 128
+const DefaultFilterCount = 24
 
-// Reads a newline delimited map file that is used when outputing the results
+var filterSet = make([]Filter, DefaultFilterCount)
+var filterSetIndex = 0
+
+// Generic class to represent a filter operation
+//
+// \since  1.0
+type Filter struct {
+  // The column to filter on
+  field string
+  
+  // The filter operation to perform
+  operation string
+  
+  // The value to filter against
+  value string
+}
+
+// Parse a the filter operation against testValue
+//
+// \since  1.0
+// \access protected
+// \param  testValue the value to filter on
+// \return bool true if the filter passes; false otherwise
+func (f *Filter) parseOperation(testValue string) bool {
+  switch strings.ToLower(f.operation) {
+    case "=":
+      return f.value == testValue
+      
+    case "!=":
+      return f.value != testValue
+      
+    case "<=":
+      return !(f.value <= testValue)
+      
+    case ">=":
+      return !(f.value >= testValue)
+      
+    case "<":
+      return !(f.value < testValue)
+      
+    case ">":
+      return !(f.value > testValue)
+      
+    case "like":
+      return strings.Contains(f.value, testValue)
+      
+    case "notlike":
+      return !strings.Contains(f.value, testValue)
+  }
+  return false
+}
+
+// Apply a filter on a given column set
+//
+// \since  1.0
+// \access public
+// \param  columns the column set to filter on
+// \return true if the filter passes; false otherwise
+func (f *Filter) Apply(columns map[string]string) bool {
+  return f.parseOperation(columns[f.field])
+}
+
+
+// Adds a filter to the filterset if one exists
+//
+// \since  1.0
+// \param  line the extracted file line
+// \return void
+func addFilter(line string) string {
+  if fields := strings.Split(line, " "); len(fields) == 3 {
+    filterSet[filterSetIndex].field     = fields[0]
+    filterSet[filterSetIndex].operation = fields[1]
+    filterSet[filterSetIndex].value     = fields[2]
+    filterSetIndex++
+    return fields[0]
+  }
+  return line
+}
+
+// Checks to see if a line contains filter operations
+//
+// \since  1.0
+// \param  filters the filters to apply
+// \param  column the line parsed into columns
+// \return bool true if the line passes all the filters
+func checkFilters(filters []Filter, columns map[string]string) (bool) {
+  for i := 0; i < filterSetIndex; i++ {
+    if !filters[i].Apply(columns) {
+      return false
+    }
+  }
+  return true
+}
+
+// Reads a newline delimited map file that is used when outputting the results
+//
+// \since  1.0
+// \param  filename the map filename
+// \return mapped array of headers otherwise error will be a non empty string
 func readMapFile(filename string) (mappedHeaders []string, errorMessage string) {
   mappedHeaders = make([]string, DefaultHeaderCount)
   
@@ -38,7 +138,7 @@ func readMapFile(filename string) (mappedHeaders []string, errorMessage string) 
       errorMessage = "Maxim amount of headers reached."
       return
     }
-    mappedHeaders[index] = string(line)
+    mappedHeaders[index] = addFilter(string(line))
     index++
     line, isPrefix, err = reader.ReadLine()
   }
@@ -101,11 +201,13 @@ func readFile(inputName string, outputName string, mapName string) {
       columns[header] = records[index]
     }
     
-    err = writer.Write(combineHeaders(mappedHeaders, columns))
-    if err != nil {
-      fmt.Println(err)
+    if checkFilters(filterSet, columns) {
+      err = writer.Write(combineHeaders(mappedHeaders, columns))
+      if err != nil {
+        fmt.Println(err)
+      }
+      writer.Flush()
     }
-    writer.Flush()
   }
 }
 
