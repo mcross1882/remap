@@ -23,12 +23,26 @@ const DefaultFilterCount = 24
 var filterSet = make([]Filter, DefaultFilterCount)
 var filterSetIndex = 0
 
+// Generic class to represent a filter operation
+//
+// \since  1.0
 type Filter struct {
+  // The column to filter on
   field string
+  
+  // The filter operation to perform
   operation string
+  
+  // The value to filter against
   value string
 }
 
+// Parse a the filter operation against testValue
+//
+// \since  1.0
+// \access protected
+// \param  testValue the value to filter on
+// \return bool true if the filter passes; false otherwise
 func (f *Filter) parseOperation(testValue string) bool {
   switch strings.ToLower(f.operation) {
     case "=":
@@ -38,16 +52,16 @@ func (f *Filter) parseOperation(testValue string) bool {
       return f.value != testValue
       
     case "<=":
-      return f.value <= testValue
+      return !(f.value <= testValue)
       
     case ">=":
-      return f.value >= testValue
+      return !(f.value >= testValue)
       
     case "<":
-      return f.value < testValue
+      return !(f.value < testValue)
       
     case ">":
-      return f.value > testValue
+      return !(f.value > testValue)
       
     case "like":
       return strings.Contains(f.value, testValue)
@@ -58,6 +72,12 @@ func (f *Filter) parseOperation(testValue string) bool {
   return false
 }
 
+// Apply a filter on a given column set
+//
+// \since  1.0
+// \access public
+// \param  columns the column set to filter on
+// \return true if the filter passes; false otherwise
 func (f *Filter) Apply(columns map[string]string) bool {
   return f.parseOperation(columns[f.field])
 }
@@ -94,7 +114,11 @@ func checkFilters(filters []Filter, columns map[string]string) (bool) {
   return true
 }
 
-// Reads a newline delimited map file that is used when outputing the results
+// Reads a newline delimited map file that is used when outputting the results
+//
+// \since  1.0
+// \param  filename the map filename
+// \return mapped array of headers otherwise error will be a non empty string
 func readMapFile(filename string) (mappedHeaders []string, errorMessage string) {
   mappedHeaders = make([]string, DefaultHeaderCount)
   
